@@ -29,6 +29,7 @@ model User {
   email         String          @unique
   password      String
   name          String
+  avatar        String // base64
   gender        Gender
   isActive      Boolean         @default(true)
   isVerified    Boolean         @default(false)
@@ -63,6 +64,7 @@ model Permission {
 model Channel {
   id        Int      @id @default(autoincrement())
   name      String
+  avatar    String // base64
   instruction String
   author    User     @relation("Channel", fields: [authorId], references: [id], onDelete: Cascade)
   authorId  Int      @unique

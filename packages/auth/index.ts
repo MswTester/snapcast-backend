@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import type { PrismaClient } from '@prisma/client';
 import { 
@@ -21,6 +21,12 @@ import {
 } from '@vinxen/shared/schema/ApiResponseTypebox';
 import { hashPassword, verifyPassword, generateTokens, validateEmail, validatePassword } from './utils';
 import { getAccessTokenExpiryMs, getRefreshTokenExpiryMs, msToSeconds } from './time-utils';
+import { 
+  compressAvatarImage, 
+  validateImageBase64, 
+  shouldCompressImage,
+  getBase64ImageSize 
+} from '@vinxen/shared';
 import { 
   requireAuth,
   requirePermission,
@@ -96,7 +102,7 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
           followings: {
             include: {
               author: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true, email: true, avatar: true }
               }
             }
           },
@@ -124,7 +130,7 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
           followings: {
             include: {
               author: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true, email: true, avatar: true }
               }
             }
           },
@@ -186,7 +192,7 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
     }
   })
   .post('/register', async ({ body, set, accessJwt, refreshJwt, cookie: { accessToken, refreshToken } }) => {
-    const { email, password, name, gender } = body as any;
+    const { email, password, name, avatar, gender } = body as any;
     if (!email || !validateEmail(email)) {
       set.status = 400;
       return commonErrorsTypebox.validationError('Valid email is required');
@@ -196,6 +202,34 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
     if (!passwordValidation.isValid) {
       set.status = 400;
       return commonErrorsTypebox.validationError(passwordValidation.message || 'Invalid password');
+    }
+
+    // Validate avatar image
+    if (!avatar || !validateImageBase64(avatar)) {
+      set.status = 400;
+      return commonErrorsTypebox.validationError('Valid avatar image is required');
+    }
+
+    // Check avatar size before compression
+    const originalSizeKB = getBase64ImageSize(avatar);
+    if (originalSizeKB > 5000) { // 5MB limit
+      set.status = 400;
+      return commonErrorsTypebox.validationError('Avatar image size cannot exceed 5MB');
+    }
+
+    // Compress avatar if needed
+    let processedAvatar = avatar;
+    try {
+      if (shouldCompressImage(avatar, 50)) {
+        console.log(`🖼️  Compressing avatar image: ${originalSizeKB.toFixed(2)}KB`);
+        processedAvatar = await compressAvatarImage(avatar);
+        const compressedSizeKB = getBase64ImageSize(processedAvatar);
+        console.log(`✅ Avatar compressed: ${compressedSizeKB.toFixed(2)}KB`);
+      }
+    } catch (error) {
+      console.error('Avatar compression failed:', error);
+      set.status = 400;
+      return commonErrorsTypebox.validationError('Failed to process avatar image');
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -214,6 +248,7 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
         email,
         password: hashedPassword,
         name,
+        avatar: processedAvatar,
         gender,
       },
       include: {
@@ -292,7 +327,7 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
           followings: {
             include: {
               author: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true, email: true, avatar: true }
               }
             }
           },
@@ -385,6 +420,101 @@ const auth = (prisma: PrismaClient) => new Elysia({ name:'auth', prefix: '/auth'
     },
     response: {
       200: ApiSuccessResponseTypeBox(),
+    }
+  })
+  .patch('/profile', async ({ body, set, user }) => {
+    if (!user) {
+      set.status = 401;
+      return commonErrorsTypebox.unauthorized();
+    }
+
+    try {
+      const { name, avatar, gender } = body as any;
+      const updateData: any = {};
+
+      // Update name if provided
+      if (name) {
+        updateData.name = name;
+      }
+
+      // Update gender if provided
+      if (gender && ['MALE', 'FEMALE'].includes(gender)) {
+        updateData.gender = gender;
+      }
+
+      // Process avatar if provided
+      if (avatar) {
+        // Validate avatar image
+        if (!validateImageBase64(avatar)) {
+          set.status = 400;
+          return commonErrorsTypebox.validationError('Valid avatar image is required');
+        }
+
+        // Check avatar size before compression
+        const originalSizeKB = getBase64ImageSize(avatar);
+        if (originalSizeKB > 5000) { // 5MB limit
+          set.status = 400;
+          return commonErrorsTypebox.validationError('Avatar image size cannot exceed 5MB');
+        }
+
+        // Compress avatar if needed
+        let processedAvatar = avatar;
+        try {
+          if (shouldCompressImage(avatar, 50)) {
+            console.log(`🖼️  Compressing avatar image: ${originalSizeKB.toFixed(2)}KB`);
+            processedAvatar = await compressAvatarImage(avatar);
+            const compressedSizeKB = getBase64ImageSize(processedAvatar);
+            console.log(`✅ Avatar compressed: ${compressedSizeKB.toFixed(2)}KB`);
+          }
+        } catch (error) {
+          console.error('Avatar compression failed:', error);
+          set.status = 400;
+          return commonErrorsTypebox.validationError('Failed to process avatar image');
+        }
+
+        updateData.avatar = processedAvatar;
+      }
+
+      // Update user
+      const updatedUser = await prisma.user.update({
+        where: { id: user.id as number },
+        data: updateData,
+        include: {
+          myChannel: true,
+          followings: {
+            include: {
+              author: {
+                select: { id: true, name: true, email: true, avatar: true }
+              }
+            }
+          },
+          plan: true
+        }
+      });
+
+      set.status = 200;
+      return createSuccessResponse(toPublicUser(updatedUser));
+    } catch (error) {
+      console.error('Profile update failed:', error);
+      set.status = 500;
+      return commonErrorsTypebox.internalError();
+    }
+  }, {
+    detail: {
+      tags: ['Authentication'],
+      summary: 'Update user profile',
+      description: 'Update the current authenticated user profile information including avatar'
+    },
+    body: t.Object({
+      name: t.Optional(t.String({ minLength: 1 })),
+      avatar: t.Optional(t.String({ minLength: 1 })),
+      gender: t.Optional(t.Union([t.Literal('MALE'), t.Literal('FEMALE')]))
+    }),
+    response: {
+      200: ApiSuccessResponseTypeBox(),
+      400: ApiErrorResponseTypeBox,
+      401: ApiErrorResponseTypeBox,
+      500: ApiErrorResponseTypeBox,
     }
   })
   .use(subscription(prisma))

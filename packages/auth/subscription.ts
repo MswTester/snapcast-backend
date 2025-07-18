@@ -29,6 +29,7 @@ const SubscribeResponseSchema = t.Object({
     id: t.Number(),
     email: t.String(),
     name: t.String(),
+    avatar: t.String(),
     gender: t.Union([t.Literal('MALE'), t.Literal('FEMALE')]),
     isActive: t.Boolean(),
     isVerified: t.Boolean(),
@@ -39,12 +40,14 @@ const SubscribeResponseSchema = t.Object({
     myChannel: t.Optional(t.Object({
       id: t.Number(),
       name: t.String(),
+      avatar: t.String(),
       instruction: t.String(),
       authorId: t.Number()
     })),
     followings: t.Array(t.Object({
       id: t.Number(),
       name: t.String(),
+      avatar: t.String(),
       instruction: t.String(),
       author: t.Object({
         id: t.Number(),
@@ -61,6 +64,7 @@ const UnsubscribeResponseSchema = t.Object({
     id: t.Number(),
     email: t.String(),
     name: t.String(),
+    avatar: t.String(),
     gender: t.Union([t.Literal('MALE'), t.Literal('FEMALE')]),
     isActive: t.Boolean(),
     isVerified: t.Boolean(),
@@ -71,12 +75,14 @@ const UnsubscribeResponseSchema = t.Object({
     myChannel: t.Optional(t.Object({
       id: t.Number(),
       name: t.String(),
+      avatar: t.String(),
       instruction: t.String(),
       authorId: t.Number()
     })),
     followings: t.Array(t.Object({
       id: t.Number(),
       name: t.String(),
+      avatar: t.String(),
       instruction: t.String(),
       author: t.Object({
         id: t.Number(),
@@ -151,7 +157,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
           followings: {
             include: {
               author: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true, email: true, avatar: true }
               }
             }
           },
@@ -201,7 +207,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
           followings: {
             include: {
               author: {
-                select: { id: true, name: true, email: true }
+                select: { id: true, name: true, email: true, avatar: true }
               }
             }
           },

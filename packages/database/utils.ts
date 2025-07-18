@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { getImageMiddleware } from './image-middleware';
 
 export type ModelName = keyof PrismaClient;
 export type PrismaDelegate = PrismaClient[ModelName];
@@ -84,11 +85,17 @@ export const generateCRUDOperations = <T extends Record<string, any>>(
   return {
     // Create
     async create(data: Partial<T>, userId?: number): Promise<T> {
-      const createData = { ...data };
+      let createData = { ...data };
       
       // Auto-set authorId for user-owned models
       if (USER_OWNED_MODELS.includes(modelName.toLowerCase()) && userId) {
         (createData as any).authorId = userId;
+      }
+      
+      // Apply image compression middleware
+      const imageMiddleware = getImageMiddleware(modelName);
+      if (imageMiddleware?.beforeCreate) {
+        createData = await imageMiddleware.beforeCreate(createData);
       }
       
       return await delegate.create({ data: createData });
@@ -131,10 +138,18 @@ export const generateCRUDOperations = <T extends Record<string, any>>(
 
     // Update
     async update(id: number | string, data: Partial<T>, userId?: number): Promise<T> {
+      let updateData = { ...data };
+      
+      // Apply image compression middleware
+      const imageMiddleware = getImageMiddleware(modelName);
+      if (imageMiddleware?.beforeUpdate) {
+        updateData = await imageMiddleware.beforeUpdate(updateData);
+      }
+      
       const where = addOwnershipFilter(modelName, { id }, userId);
       return await delegate.update({
         where,
-        data
+        data: updateData
       });
     },
 
@@ -153,7 +168,18 @@ export const generateCRUDOperations = <T extends Record<string, any>>(
     ): Promise<T> {
       const filteredWhere = addOwnershipFilter(modelName, where, userId);
       
-      const createData = { ...create };
+      let createData = { ...create };
+      let updateData = { ...update };
+      
+      // Apply image compression middleware
+      const imageMiddleware = getImageMiddleware(modelName);
+      if (imageMiddleware?.beforeCreate) {
+        createData = await imageMiddleware.beforeCreate(createData);
+      }
+      if (imageMiddleware?.beforeUpdate) {
+        updateData = await imageMiddleware.beforeUpdate(updateData);
+      }
+      
       if (USER_OWNED_MODELS.includes(modelName.toLowerCase()) && userId) {
         (createData as any).authorId = userId;
       }
@@ -161,19 +187,28 @@ export const generateCRUDOperations = <T extends Record<string, any>>(
       return await delegate.upsert({
         where: filteredWhere,
         create: createData,
-        update
+        update: updateData
       });
     },
 
     // Bulk operations
     async createMany(data: Partial<T>[], userId?: number): Promise<{ count: number }> {
-      const createData = data.map(item => {
-        const newItem = { ...item };
+      const imageMiddleware = getImageMiddleware(modelName);
+      
+      const createData = await Promise.all(data.map(async item => {
+        let newItem = { ...item };
+        
+        // Apply image compression middleware
+        if (imageMiddleware?.beforeCreate) {
+          newItem = await imageMiddleware.beforeCreate(newItem);
+        }
+        
         if (USER_OWNED_MODELS.includes(modelName.toLowerCase()) && userId) {
           (newItem as any).authorId = userId;
         }
+        
         return newItem;
-      });
+      }));
       
       return await delegate.createMany({ data: createData });
     },
@@ -183,8 +218,16 @@ export const generateCRUDOperations = <T extends Record<string, any>>(
       data: Partial<T>,
       userId?: number
     ): Promise<{ count: number }> {
+      let updateData = { ...data };
+      
+      // Apply image compression middleware
+      const imageMiddleware = getImageMiddleware(modelName);
+      if (imageMiddleware?.beforeUpdate) {
+        updateData = await imageMiddleware.beforeUpdate(updateData);
+      }
+      
       const filteredWhere = addOwnershipFilter(modelName, where, userId);
-      return await delegate.updateMany({ where: filteredWhere, data });
+      return await delegate.updateMany({ where: filteredWhere, data: updateData });
     },
 
     async deleteMany(where: Record<string, any>, userId?: number): Promise<{ count: number }> {

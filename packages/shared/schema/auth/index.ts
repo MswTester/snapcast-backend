@@ -5,6 +5,7 @@ import type { User } from '@prisma/client';
 export const ChannelSchema = z.object({
   id: z.number(),
   name: z.string(),
+  avatar: z.string(),
   instruction: z.string(),
   authorId: z.number(),
 });
@@ -21,6 +22,7 @@ export const UserPublicSchema = z.object({
   id: z.number(),
   email: z.string().email(),
   name: z.string(),
+  avatar: z.string(),
   gender: z.enum(['MALE', 'FEMALE']),
   isActive: z.boolean(),
   isVerified: z.boolean(),
@@ -45,6 +47,7 @@ export const RegisterRequestSchema = z.object({
     .regex(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 
       'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
   name: z.string().min(1, 'Name is required'),
+  avatar: z.string().min(1, 'Avatar is required'),
   gender: z.enum(['MALE', 'FEMALE']),
 });
 
@@ -97,6 +100,7 @@ export const toPublicUser = (user: any): UserPublic => ({
   id: user.id,
   email: user.email,
   name: user.name,
+  avatar: user.avatar,
   gender: user.gender,
   isActive: user.isActive,
   isVerified: user.isVerified,
@@ -106,12 +110,14 @@ export const toPublicUser = (user: any): UserPublic => ({
   myChannel: user.myChannel ? {
     id: user.myChannel.id,
     name: user.myChannel.name,
+    avatar: user.myChannel.avatar,
     instruction: user.myChannel.instruction,
     authorId: user.myChannel.authorId,
   } : null,
   followings: user.followings?.map((channel: any) => ({
     id: channel.id,
     name: channel.name,
+    avatar: channel.avatar,
     instruction: channel.instruction,
     authorId: channel.authorId,
   })) || [],

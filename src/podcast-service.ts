@@ -602,7 +602,7 @@ JSON 형식:
       const snap = await this.prisma.snap.findUnique({
         where: { id: snapId },
         include: {
-          channel: { include: { author: { select: { id: true, name: true } } } },
+          channel: { include: { author: { select: { id: true, name: true, avatar: true } } } },
           contexts: true
         }
       });

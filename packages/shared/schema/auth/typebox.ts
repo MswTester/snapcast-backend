@@ -4,6 +4,7 @@ import { Type, type Static } from '@sinclair/typebox';
 export const ChannelTypeBox = Type.Object({
   id: Type.Number(),
   name: Type.String(),
+  avatar: Type.String(),
   instruction: Type.String(),
   authorId: Type.Number(),
 });
@@ -20,6 +21,7 @@ export const UserPublicTypeBox = Type.Object({
   id: Type.Number(),
   email: Type.String({ format: 'email' }),
   name: Type.String(),
+  avatar: Type.String(),
   gender: Type.Union([Type.Literal('MALE'), Type.Literal('FEMALE')]),
   isActive: Type.Boolean(),
   isVerified: Type.Boolean(),
@@ -44,6 +46,7 @@ export const RegisterRequestTypeBox = Type.Object({
     pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$' 
   }),
   name: Type.String({ minLength: 1 }),
+  avatar: Type.String({ minLength: 1 }),
   gender: Type.Union([Type.Literal('MALE'), Type.Literal('FEMALE')]),
 });
 
