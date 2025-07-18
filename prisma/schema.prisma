@@ -1,0 +1,125 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+  output = "../node_modules/.prisma/client"
+}
+
+generator prismabox {
+  provider = "prismabox"
+  output = "../packages/shared/generated/prismabox"
+}
+
+generator zod {
+  provider = "prisma-zod-generator"
+  output = "../packages/shared/generated/zod"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  password      String
+  name          String
+  gender        Gender
+  isActive      Boolean         @default(true)
+  isVerified    Boolean         @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  followings    Channel[]       @relation("Followings")
+  permissions   Permission[]
+  myChannel     Channel?        @relation("Channel")
+  plan          Plan?           @relation("Plan", fields: [planId], references: [id])
+  planId        Int?
+  snaps         Snap[]
+  searchHistory SearchHistory[]
+}
+
+model Plan {
+  id    Int    @id @default(autoincrement())
+  name  String
+  price Float  // Monthly Price (USD)
+  users User[] @relation("Plan")
+}
+
+model Permission {
+  id     Int    @id @default(autoincrement())
+  name   String
+  userId Int
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, name])
+}
+
+model Channel {
+  id        Int      @id @default(autoincrement())
+  name      String
+  instruction String
+  author    User     @relation("Channel", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId  Int      @unique
+  followers User[]   @relation("Followings")
+  snaps     Snap[]
+}
+
+model Snap { // PostLike
+  id          Int       @id @default(autoincrement())
+  title       String
+  duration    Float
+  views       Int       @default(0)
+  tags        Tag[]
+  contexts    Context[]
+  audio       String    // File Path
+  channel     Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId   Int
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId    Int
+}
+
+model Tag {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  snaps Snap[]
+}
+
+enum RoleType {
+  HOST
+  CHARACTER
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String // 가명 랜덤생성 (호스트는 HOST 고정)
+  type  RoleType
+  personality String // 성격(자연어, HOST는 채널 instruction field 사용)
+  volume_db Float // 볼륨
+  Context Context[] @relation("Context")
+}
+
+model Context {
+  id        Int      @id @default(autoincrement())
+  roles     Role[]   @relation("Context")
+  message   String
+  timeline  Float
+  snapId    Int
+  snap      Snap     @relation(fields: [snapId], references: [id], onDelete: Cascade)
+}
+
+model SearchHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query     String
+  results   String   // JSON string of search results
+  timestamp DateTime @default(now())
+  
+  @@index([userId, timestamp])
+}
