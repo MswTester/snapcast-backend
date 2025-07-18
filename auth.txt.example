@@ -1,0 +1,17 @@
+# ElevenLabs Account Authentication File
+# Format: email:password (one per line)
+# Used for account rotation to manage API limits
+
+# Example accounts (replace with real accounts):
+# user1@gmail.com:password123
+# user2@gmail.com:password456
+# user3@gmail.com:password789
+
+# Instructions:
+# 1. Create accounts on https://elevenlabs.io
+# 2. Add them to this file in email:password format
+# 3. Rename this file to auth.txt
+# 4. The system will automatically rotate between accounts
+# 5. Each account can make 2 TTS requests before rotation
+
+# Note: Keep this file secure and never commit it to version control

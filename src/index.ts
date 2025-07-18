@@ -13,6 +13,7 @@ import { audioUpload } from './audio-upload';
 import { aiSearch } from './ai-search';
 import { recommendedSnaps } from './recommended-snaps';
 import { snapDetail } from './snap-detail';
+import { podcastRouter } from './podcast-router';
 
 const prisma = new PrismaClient();
 
@@ -94,6 +95,11 @@ const app = new Elysia()
     requireAuth: false,
     maxRelatedLimit: 20,
     defaultRelatedLimit: 5
+  }))
+  .use(podcastRouter(prisma, {
+    requireAuth: true,
+    audioDirectory: process.env.AUDIO_DIRECTORY || './audio',
+    authFile: process.env.ELEVENLABS_AUTH_FILE || './auth.txt'
   }))
 
   // Public routes
