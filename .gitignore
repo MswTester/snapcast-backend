@@ -9,3 +9,6 @@ build/
 prisma/dev.db
 generated/
 prisma/migrations
+audio/
+auth.txt
+cookies.txt
