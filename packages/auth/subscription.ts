@@ -14,6 +14,84 @@ const SubscribeToPlanSchema = t.Object({
   planId: t.Number({ minimum: 1 }),
 });
 
+// Subscription response schemas
+const PlanSchema = t.Object({
+  id: t.Number(),
+  name: t.String(),
+  price: t.Number()
+});
+
+const PlansListResponseSchema = t.Array(PlanSchema);
+
+const SubscribeResponseSchema = t.Object({
+  message: t.String(),
+  user: t.Object({
+    id: t.Number(),
+    email: t.String(),
+    name: t.String(),
+    gender: t.Union([t.Literal('MALE'), t.Literal('FEMALE')]),
+    isActive: t.Boolean(),
+    isVerified: t.Boolean(),
+    lastLogin: t.Optional(t.String()),
+    createdAt: t.String(),
+    updatedAt: t.String(),
+    plan: t.Optional(PlanSchema),
+    myChannel: t.Optional(t.Object({
+      id: t.Number(),
+      name: t.String(),
+      instruction: t.String(),
+      authorId: t.Number()
+    })),
+    followings: t.Array(t.Object({
+      id: t.Number(),
+      name: t.String(),
+      instruction: t.String(),
+      author: t.Object({
+        id: t.Number(),
+        name: t.String(),
+        email: t.String()
+      })
+    }))
+  })
+});
+
+const UnsubscribeResponseSchema = t.Object({
+  message: t.String(),
+  user: t.Object({
+    id: t.Number(),
+    email: t.String(),
+    name: t.String(),
+    gender: t.Union([t.Literal('MALE'), t.Literal('FEMALE')]),
+    isActive: t.Boolean(),
+    isVerified: t.Boolean(),
+    lastLogin: t.Optional(t.String()),
+    createdAt: t.String(),
+    updatedAt: t.String(),
+    plan: t.Optional(PlanSchema),
+    myChannel: t.Optional(t.Object({
+      id: t.Number(),
+      name: t.String(),
+      instruction: t.String(),
+      authorId: t.Number()
+    })),
+    followings: t.Array(t.Object({
+      id: t.Number(),
+      name: t.String(),
+      instruction: t.String(),
+      author: t.Object({
+        id: t.Number(),
+        name: t.String(),
+        email: t.String()
+      })
+    }))
+  })
+});
+
+const StatusResponseSchema = t.Object({
+  hasSubscription: t.Boolean(),
+  plan: t.Optional(PlanSchema)
+});
+
 const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription' })
   .decorate('requireAuth', () => requireAuth())
   .decorate('requirePlan', (planName: string) => requirePlan(prisma, planName))
@@ -38,7 +116,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
       description: 'Retrieve a list of all available subscription plans'
     },
     response: {
-      200: ApiSuccessResponseTypeBox(),
+      200: ApiSuccessResponseTypeBox(PlansListResponseSchema),
       500: ApiErrorResponseTypeBox,
     }
   })
@@ -98,7 +176,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
     },
     body: SubscribeToPlanSchema,
     response: {
-      200: ApiSuccessResponseTypeBox(),
+      200: ApiSuccessResponseTypeBox(SubscribeResponseSchema),
       401: ApiErrorResponseTypeBox,
       404: ApiErrorResponseTypeBox,
       500: ApiErrorResponseTypeBox,
@@ -147,7 +225,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
       description: 'Remove the authenticated user from their current subscription plan'
     },
     response: {
-      200: ApiSuccessResponseTypeBox(),
+      200: ApiSuccessResponseTypeBox(UnsubscribeResponseSchema),
       401: ApiErrorResponseTypeBox,
       500: ApiErrorResponseTypeBox,
     }
@@ -189,7 +267,7 @@ const subscription = (prisma: PrismaClient) => new Elysia({ name: 'subscription'
       description: 'Get the current subscription status of the authenticated user'
     },
     response: {
-      200: ApiSuccessResponseTypeBox(),
+      200: ApiSuccessResponseTypeBox(StatusResponseSchema),
       401: ApiErrorResponseTypeBox,
       404: ApiErrorResponseTypeBox,
       500: ApiErrorResponseTypeBox,

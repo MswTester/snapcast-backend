@@ -8,6 +8,8 @@ import { join, extname } from 'path';
 import { 
   QuestionGenerationBody, 
   QuestionOutputSchema,
+  QuestionGenerationResponseSchema,
+  SnapGenerationResponseSchema,
   type QuestionGenerationResponse
 } from "./podcast-schemas";
 import {
@@ -46,34 +48,35 @@ const podcast = (
       try {
         const { story, channelInstruction } = body;
         
-        const prompt = `You are an AI podcast producer. Based on the user's story and channel instruction, analyze the content and determine the optimal number of follow-up questions (1-5) that will help make the story more concrete and detailed for a compelling podcast episode.
+        const prompt = `너는 AI 팟캐스트 제작자야. 사용자의 이야기와 채널 지침을 분석해서, 이야기를 구체적이고 생생하게 만들기 위한 최적의 후속 질문 개수(1\~5개)를 정해야 해.
 
-Channel Instruction: ${channelInstruction}
+채널 지침: \${channelInstruction}
 
-User's Story: ${story}
+사용자의 이야기: \${story}
 
-Generate questions that focus on CONCRETENESS - helping the user provide specific, vivid, and detailed information about their story. The questions should:
+이야기의 구체성을 높이고 더욱 생생하고 자세하게 전달할 수 있도록 질문을 만들어줘. 질문은 다음 요소들에 초점을 맞춰야 해:
 
-1. **Specific Details**: Ask about exact moments, places, people, times, and circumstances
-2. **Sensory Information**: Encourage descriptions of what they saw, heard, felt, smelled, or touched
-3. **Concrete Emotions**: Help them articulate specific feelings and reactions in the moment
-4. **Precise Context**: Get clarity on the setting, background, and specific situation
-5. **Actual Dialogue**: Ask them to recall specific conversations or words spoken
-6. **Tangible Outcomes**: Focus on concrete results, changes, or specific impacts
+1. 구체적인 디테일: 정확한 순간, 장소, 사람, 시간, 상황을 묻기
+2. 감각적 정보: 본 것, 들은 것, 느낀 것, 냄새 맡은 것, 만진 것을 설명하도록 유도하기
+3. 구체적인 감정: 당시 느낀 구체적인 감정이나 즉각적인 반응을 표현하도록 돕기
+4. 정확한 맥락: 배경, 상황, 환경에 대해 명확히 묻기
+5. 실제 대화: 실제로 오갔던 대화나 정확한 표현을 회상하게 하기
+6. 구체적 결과: 실질적인 결과, 변화, 구체적인 영향을 묻기
 
-Examples of concrete questions:
-- "Can you describe the exact moment when you realized..."
-- "What specifically did you see/hear/feel when..."
-- "What were the actual words said during that conversation?"
-- "Can you paint a picture of what the room/place looked like?"
-- "What was going through your mind at that specific moment?"
+구체성을 높이는 질문의 예시:
 
-Avoid abstract or general questions. Focus on helping the user recall and share the concrete, specific details that will make their story vivid and engaging for listeners.
+* "정확히 언제 그 사실을 깨닫게 되었는지 순간을 묘사해줄 수 있나요?"
+* "그때 무엇을 정확히 보고, 듣고, 느꼈나요?"
+* "그 대화에서 실제로 어떤 말들이 오갔나요?"
+* "그 장소가 어떻게 생겼는지 자세히 그려줄 수 있나요?"
+* "바로 그 순간, 당신 머릿속엔 어떤 생각이 지나갔나요?"
 
-Each question should have a clear purpose for extracting concrete details that will enhance the podcast narrative.`;
+추상적이거나 일반적인 질문은 피하고, 청취자들이 이야기를 생생하게 느낄 수 있도록 구체적이고 세부적인 디테일을 끌어내는 질문을 해줘.
+
+각 질문은 팟캐스트의 내러티브를 풍성하게 만드는 데 분명한 목적을 가지고 있어야 해.`;
 
         const { contents, config: genConfig } = new GenAIBuilder()
-          .setSystemInstruction("You are a professional podcast producer who specializes in extracting concrete, specific details from stories. Your goal is to generate questions that help storytellers provide vivid, detailed, and tangible information that will make their stories come alive for podcast listeners. Focus on specificity, sensory details, and concrete moments rather than abstract concepts.")
+          .setSystemInstruction("너는 이야기를 생생하게 전달하는 팟캐스트를 제작하는 전문가야. 너의 목표는 이야기 속에서 구체적이고 생동감 있는 디테일을 끌어내는 질문을 만들어내는 거야. 청취자들이 이야기에 몰입할 수 있도록, 추상적인 개념보다는 감각적인 묘사, 구체적인 순간, 눈에 보이고, 귀에 들리고, 손에 잡히는 장면에 집중해야 해. 그러니까 질문도 이렇게 만들어야 해. 추상적인 질문 대신, “그 순간, 어떤 냄새가 났나요?”, “그 사람이 한 말 중 정확히 어떤 문장이 기억에 남나요?”, “당신 손에 쥐어졌던 물건은 어떤 감촉이었나요?” 같은 질문을 던지는 거야. 한마디로, 구체적인 장면이 떠오르게 만드는 질문 제작자가 되는 거야. 모든 답변은 한국어로 대답해.")
           .addUserMsg(prompt)
           .setResponseSchema(QuestionOutputSchema)
           .applyConfig(GenerationPresets.creative)
@@ -102,7 +105,7 @@ Each question should have a clear purpose for extracting concrete details that w
         description: 'Generate AI-powered follow-up questions that help extract concrete, specific details from user stories. Focuses on sensory information, exact moments, specific emotions, and tangible details to make stories more vivid and engaging for podcast listeners.'
       },
       response: {
-        200: ApiSuccessResponseTypeBox(),
+        200: ApiSuccessResponseTypeBox(QuestionGenerationResponseSchema),
         401: ApiErrorResponseTypeBox,
         500: ApiErrorResponseTypeBox
       }
@@ -268,7 +271,7 @@ Each question should have a clear purpose for extracting concrete details that w
         description: 'Generate complete podcast episode (snap) by combining story and Q&A, sending to external audio&snap generation server, and storing the result'
       },
       response: {
-        200: ApiSuccessResponseTypeBox(),
+        200: ApiSuccessResponseTypeBox(SnapGenerationResponseSchema),
         401: ApiErrorResponseTypeBox,
         403: ApiErrorResponseTypeBox,
         404: ApiErrorResponseTypeBox,

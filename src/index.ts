@@ -1,5 +1,5 @@
 // src/index.ts
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import { cors } from '@elysiajs/cors';
 import { jwt } from '@elysiajs/jwt';
@@ -88,13 +88,21 @@ const app = new Elysia()
   .get('/health', () => createSuccessResponse({ 
     status: 'ok'
   }), {
+    detail: {
+      tags: ['Health'],
+      summary: 'Health check endpoint',
+      description: 'Returns the health status of the API'
+    },
     response: {
-      200: ApiSuccessResponseTypeBox(),
+      200: ApiSuccessResponseTypeBox(t.Object({
+        status: t.String()
+      })),
     }
   })
 
   .listen(PORT, () => {
-    console.log(`Swagger UI on http://localhost:${PORT}/swagger`);
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Swagger UI accessible at http://localhost:${PORT}/swagger`);
   });
 
 export default app;

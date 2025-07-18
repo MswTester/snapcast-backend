@@ -111,6 +111,302 @@ const SearchAnalysisSchema = {
   required: ["intent", "keywords", "contentTypes", "searchQueries", "relevanceFactors"]
 };
 
+// Optimized include configurations
+const SNAP_SEARCH_INCLUDE = {
+  channel: {
+    include: {
+      author: {
+        select: { id: true, name: true }
+      }
+    }
+  },
+  author: {
+    select: { id: true, name: true, gender: true }
+  },
+  tags: {
+    select: { name: true }
+  }
+} as const;
+
+const CHANNEL_SEARCH_INCLUDE = {
+  author: {
+    select: { id: true, name: true }
+  },
+  followers: {
+    select: { id: true }
+  },
+  snaps: {
+    select: { id: true, title: true, views: true },
+    orderBy: { views: 'desc' as const },
+    take: 3
+  }
+} as const;
+
+// Search condition builders
+function buildSnapSearchConditions(
+  query: string,
+  analysis: AIAnalysisResult,
+  filters?: SearchFilters
+): SnapWhereInput {
+  const baseConditions: SnapWhereInput = {
+    OR: [
+      {
+        title: {
+          contains: analysis.searchQueries.snapQuery
+        }
+      },
+      {
+        title: {
+          contains: query
+        }
+      },
+      // Search in tags using AI keywords
+      {
+        tags: {
+          some: {
+            name: {
+              in: analysis.keywords
+            }
+          }
+        }
+      },
+      // Search in tags with direct query
+      {
+        tags: {
+          some: {
+            name: {
+              contains: query
+            }
+          }
+        }
+      },
+      // Search in related channel names and instructions
+      {
+        channel: {
+          OR: [
+            {
+              name: {
+                contains: query
+              }
+            },
+            {
+              instruction: {
+                contains: query
+              }
+            }
+          ]
+        }
+      }
+    ]
+  };
+
+  // Apply filters
+  const conditions: SnapWhereInput = { ...baseConditions };
+  const andConditions: SnapWhereInput[] = [];
+
+  if (filters?.channelId) {
+    andConditions.push({ channelId: filters.channelId });
+  }
+
+  if (filters?.authorId) {
+    andConditions.push({ authorId: filters.authorId });
+  }
+
+  if (filters?.authorGender) {
+    andConditions.push({
+      author: {
+        gender: filters.authorGender
+      }
+    });
+  }
+
+  if (filters?.tags && filters.tags.length > 0) {
+    andConditions.push({
+      tags: {
+        some: {
+          name: {
+            in: filters.tags
+          }
+        }
+      }
+    });
+  }
+
+  if (filters?.dateRange) {
+    const dateConditions: any = {};
+    if (filters.dateRange.from) {
+      dateConditions.gte = new Date(filters.dateRange.from);
+    }
+    if (filters.dateRange.to) {
+      dateConditions.lte = new Date(filters.dateRange.to);
+    }
+    if (Object.keys(dateConditions).length > 0) {
+      andConditions.push({
+        channel: {
+          author: {
+            createdAt: dateConditions
+          }
+        }
+      });
+    }
+  }
+
+  if (andConditions.length > 0) {
+    return {
+      AND: [conditions, ...andConditions]
+    };
+  }
+
+  return conditions;
+}
+
+function buildChannelSearchConditions(
+  query: string,
+  analysis: AIAnalysisResult,
+  filters?: SearchFilters
+): ChannelWhereInput {
+  const baseConditions: ChannelWhereInput = {
+    OR: [
+      {
+        name: {
+          contains: analysis.searchQueries.channelQuery
+        }
+      },
+      {
+        name: {
+          contains: query
+        }
+      },
+      {
+        instruction: {
+          contains: query
+        }
+      },
+      // Search in channel's snap titles
+      {
+        snaps: {
+          some: {
+            title: {
+              contains: query
+            }
+          }
+        }
+      }
+    ]
+  };
+
+  // Apply filters
+  const conditions: ChannelWhereInput = { ...baseConditions };
+  const andConditions: ChannelWhereInput[] = [];
+
+  if (filters?.authorId) {
+    andConditions.push({ authorId: filters.authorId });
+  }
+
+  if (filters?.authorGender) {
+    andConditions.push({
+      author: {
+        gender: filters.authorGender
+      }
+    });
+  }
+
+  if (filters?.dateRange) {
+    const dateConditions: any = {};
+    if (filters.dateRange.from) {
+      dateConditions.gte = new Date(filters.dateRange.from);
+    }
+    if (filters.dateRange.to) {
+      dateConditions.lte = new Date(filters.dateRange.to);
+    }
+    if (Object.keys(dateConditions).length > 0) {
+      andConditions.push({
+        author: {
+          createdAt: dateConditions
+        }
+      });
+    }
+  }
+
+  if (andConditions.length > 0) {
+    return {
+      AND: [conditions, ...andConditions]
+    };
+  }
+
+  return conditions;
+}
+
+// Order by builders
+function buildSnapOrderBy(analysis: AIAnalysisResult): Prisma.SnapOrderByWithRelationInput[] {
+  const orderBy: Prisma.SnapOrderByWithRelationInput[] = [];
+  
+  // Priority ordering based on search intent
+  if (analysis.intent === 'recent_content') {
+    orderBy.push({ id: 'desc' });
+  } else {
+    orderBy.push({ views: 'desc' });
+  }
+  
+  // Secondary ordering
+  orderBy.push({ id: 'desc' });
+  
+  return orderBy;
+}
+
+function buildChannelOrderBy(analysis: AIAnalysisResult): Prisma.ChannelOrderByWithRelationInput[] {
+  const orderBy: Prisma.ChannelOrderByWithRelationInput[] = [];
+  
+  // Priority ordering based on search intent
+  if (analysis.intent === 'recent_content') {
+    orderBy.push({ id: 'desc' });
+  } else {
+    orderBy.push({ followers: { _count: 'desc' } });
+  }
+  
+  // Secondary ordering
+  orderBy.push({ id: 'desc' });
+  
+  return orderBy;
+}
+
+// Response formatters
+function formatSnapResult(snap: any) {
+  return {
+    id: snap.id,
+    title: snap.title,
+    duration: snap.duration,
+    views: snap.views,
+    tags: snap.tags.map((tag: any) => tag.name),
+    audioUrl: `/audio/snap/${snap.id}`,
+    channel: {
+      id: snap.channel.id,
+      name: snap.channel.name,
+      author: snap.channel.author.name
+    },
+    author: {
+      id: snap.author.id,
+      name: snap.author.name,
+      gender: snap.author.gender
+    }
+  };
+}
+
+function formatChannelResult(channel: any) {
+  return {
+    id: channel.id,
+    name: channel.name,
+    instruction: channel.instruction,
+    author: channel.author.name,
+    followerCount: channel.followers.length,
+    recentSnaps: channel.snaps.map((snap: any) => ({
+      id: snap.id,
+      title: snap.title,
+      views: snap.views
+    }))
+  };
+}
+
 export const aiSearch = (
   prisma: PrismaClient,
   options: AISearchOptions = {}
@@ -189,7 +485,7 @@ Consider semantic meaning, synonyms, and related concepts. For example:
           .build();
 
         const analysisResult = await ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-2.0-flash-lite",
           contents,
           config: genConfig
         });
@@ -208,7 +504,7 @@ Consider semantic meaning, synonyms, and related concepts. For example:
         const shouldSearchChannels = !filters?.type || filters.type === 'channel' || filters.type === 'both';
 
         // Execute optimized parallel searches
-        const searchPromises = [];
+        const searchPromises: Promise<any[]>[] = [];
         
         if (shouldSearchSnaps && analysis.contentTypes.includes('snap')) {
           searchPromises.push(
@@ -237,8 +533,8 @@ Consider semantic meaning, synonyms, and related concepts. For example:
         }
 
         const [snapResults, channelResults] = await Promise.all(searchPromises);
-        snaps = snapResults;
-        channels = channelResults;
+        snaps = snapResults || [];
+        channels = channelResults || [];
 
         // Prepare optimized response data
         const responseData = {

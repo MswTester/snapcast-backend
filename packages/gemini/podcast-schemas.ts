@@ -51,11 +51,15 @@ export const QuestionOutputSchema: Schema = {
       properties: {
         totalQuestions: {
           type: Type.NUMBER,
-          description: "Total number of questions generated"
+          description: "Total number of questions generated",
+          minimum: 1,
+          maximum: 5
         },
         estimatedDuration: {
           type: Type.NUMBER,
-          description: "Estimated time to answer all questions in minutes"
+          description: "Estimated time to answer all questions in minutes",
+          minimum: 1,
+          maximum: 5
         }
       },
       required: ["totalQuestions", "estimatedDuration"]
@@ -80,7 +84,9 @@ export const ScriptOutputSchema: Schema = {
         },
         estimatedDuration: {
           type: Type.NUMBER,
-          description: "Estimated duration in minutes"
+          description: "Estimated duration in minutes",
+          minimum: 1,
+          maximum: 5
         },
         dialogue: {
           type: Type.ARRAY,
@@ -135,18 +141,24 @@ export const ScriptOutputSchema: Schema = {
       properties: {
         totalSpeakers: {
           type: Type.NUMBER,
-          description: "Total number of unique speakers"
+          description: "Total number of unique speakers",
+          minimum: 1,
+          maximum: 5
         },
         totalDialogues: {
           type: Type.NUMBER,
-          description: "Total number of dialogue entries"
+          description: "Total number of dialogue entries",
+          minimum: 1,
+          maximum: 5
         },
         genres: {
           type: Type.ARRAY,
           items: {
             type: Type.STRING
           },
-          description: "Suggested genres/categories for this episode"
+          description: "Suggested genres/categories for this episode",
+          minItems: "1",
+          maxItems: "5"
         }
       },
       required: ["totalSpeakers", "totalDialogues", "genres"]
@@ -190,3 +202,30 @@ export type ScriptGenerationResponse = {
     genres: string[];
   };
 };
+
+// TypeBox schemas for API responses
+export const QuestionGenerationResponseSchema = t.Object({
+  questions: t.Array(t.Object({
+    id: t.Number(),
+    content: t.String(),
+    purpose: t.String()
+  })),
+  metadata: t.Object({
+    totalQuestions: t.Number(),
+    estimatedDuration: t.Number()
+  })
+});
+
+export const SnapGenerationResponseSchema = t.Object({
+  id: t.Number(),
+  title: t.String(),
+  duration: t.Number(),
+  views: t.Number(),
+  audioUrl: t.String(),
+  channel: t.Object({
+    id: t.Number(),
+    name: t.String(),
+    author: t.String()
+  }),
+  createdAt: t.String()
+});
