@@ -33,9 +33,9 @@ export const audioStream = (
 ) => {
   const config = { ...DEFAULT_OPTIONS, ...options };
 
-  return new Elysia({ name: 'audio-stream', prefix: '/audio' })
+  return new Elysia({ name: 'audio-stream', prefix: '/snap' })
     .decorate('prisma', prisma)
-    .get('/snap/:id', async ({ params, request, set, ...ctx }) => {
+    .get('/:id', async ({ params, request, set, ...ctx }) => {
       const user = (ctx as any).user;
       
       // Authentication check
@@ -177,114 +177,6 @@ export const audioStream = (
         416: ApiErrorResponseTypeBox,
         500: ApiErrorResponseTypeBox
       }
-    })
-    .get('/snap/:id/info', async ({ params, set, ...ctx }) => {
-      const user = (ctx as any).user;
-      
-      if (config.requireAuth && !user) {
-        set.status = 401;
-        return commonErrorsTypebox.unauthorized();
-      }
-
-      try {
-        const snapId = parseInt(params.id);
-        
-        const snap = await prisma.snap.findUnique({
-          where: { id: snapId },
-          include: {
-            channel: {
-              include: {
-                author: {
-                  select: { id: true, name: true }
-                }
-              }
-            }
-          }
-        });
-
-        if (!snap) {
-          set.status = 404;
-          return commonErrorsTypebox.notFound();
-        }
-
-        // Check access permissions
-        if (config.requireAuth && user) {
-          const isOwner = snap.channel.author.id === user.id;
-          const isSubscriber = user.planId !== null;
-          
-          if (!isOwner && !isSubscriber) {
-            set.status = 403;
-            return commonErrorsTypebox.forbidden();
-          }
-        }
-
-        // Get audio file info
-        const audioPath = join(config.audioDirectory!, snap.audio);
-        
-        if (!existsSync(audioPath)) {
-          set.status = 404;
-          return commonErrorsTypebox.notFound();
-        }
-
-        const stats = statSync(audioPath);
-        const ext = extname(audioPath).toLowerCase();
-        const mimeType = AUDIO_MIME_TYPES[ext] || 'application/octet-stream';
-
-        return {
-          id: snap.id,
-          title: snap.title,
-          duration: snap.duration,
-          views: snap.views,
-          channel: {
-            id: snap.channel.id,
-            name: snap.channel.name,
-            author: snap.channel.author.name
-          },
-          audio: {
-            filename: snap.audio,
-            size: stats.size,
-            mimeType: mimeType,
-            lastModified: stats.mtime.toISOString()
-          },
-          streamUrl: `/audio/snap/${snap.id}`
-        };
-      } catch (error) {
-        console.error('Audio info error:', error);
-        set.status = 500;
-        return commonErrorsTypebox.internalError();
-      }
-    }, {
-      params: t.Object({
-        id: t.String()
-      }),
-      detail: {
-        tags: ['Audio'],
-        summary: 'Get audio file information',
-        description: 'Get metadata and information about an audio file for a podcast episode'
-      },
-      response: {
-        200: t.Object({
-          id: t.Number(),
-          title: t.String(),
-          duration: t.Number(),
-          views: t.Number(),
-          channel: t.Object({
-            id: t.Number(),
-            name: t.String(),
-            author: t.String()
-          }),
-          audio: t.Object({
-            filename: t.String(),
-            size: t.Number(),
-            mimeType: t.String(),
-            lastModified: t.String()
-          }),
-          streamUrl: t.String()
-        }),
-        401: ApiErrorResponseTypeBox,
-        403: ApiErrorResponseTypeBox,
-        404: ApiErrorResponseTypeBox,
-        500: ApiErrorResponseTypeBox
-      }
     });
+    // Note: /snap/:id/info endpoint moved to snap-detail.ts router
 };

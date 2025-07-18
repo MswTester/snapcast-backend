@@ -11,6 +11,8 @@ import { gemini } from '@vinxen/gemini';
 import { audioStream } from './audio-stream';
 import { audioUpload } from './audio-upload';
 import { aiSearch } from './ai-search';
+import { recommendedSnaps } from './recommended-snaps';
+import { snapDetail } from './snap-detail';
 
 const prisma = new PrismaClient();
 
@@ -82,6 +84,16 @@ const app = new Elysia()
   .use(aiSearch(prisma, {
     requireAuth: false,
     maxResults: 20
+  }))
+  .use(recommendedSnaps(prisma, {
+    requireAuth: false,
+    maxLimit: 50,
+    defaultLimit: 10
+  }))
+  .use(snapDetail(prisma, {
+    requireAuth: false,
+    maxRelatedLimit: 20,
+    defaultRelatedLimit: 5
   }))
 
   // Public routes
