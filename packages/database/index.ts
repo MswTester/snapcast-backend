@@ -18,6 +18,7 @@ import {
   ListQuerySchema,
   ModelParamSchema,} from './schemas';
 import type { DatabasePluginOptions } from './types';
+import { compressAvatarImage, getBase64ImageSize, shouldCompressImage, validateImageBase64 } from '@vinxen/shared';
 
 const DEFAULT_OPTIONS: Required<Omit<DatabasePluginOptions, 'permissions'>> & { permissions: DatabasePluginOptions['permissions'] } = {
   prefix: '',
@@ -37,6 +38,76 @@ export const database = (
   return new Elysia({ name: 'database', prefix: config.prefix })
     .decorate('prisma', prisma)
     .decorate('crudOps', (modelName: string) => generateCRUDOperations(prisma, modelName))
+
+    .post('/create-channel', async ({ body, set, ...ctx }) => {
+      const { name, instruction, avatar } = body as any;
+      if (!(ctx as any).user) {
+        set.status = 401;
+        return commonErrorsTypebox.unauthorized();
+      }
+      const userId = (ctx as any).user.id;
+      // Validate avatar image
+      if (!avatar || !validateImageBase64(avatar)) {
+        set.status = 400;
+        return commonErrorsTypebox.validationError('Valid avatar image is required');
+      }
+      // Check avatar size before compression
+    const originalSizeKB = getBase64ImageSize(avatar);
+    if (originalSizeKB > 5000) { // 5MB limit
+      set.status = 400;
+      return commonErrorsTypebox.validationError('Avatar image size cannot exceed 5MB');
+    }
+
+    // Compress avatar if needed
+    let processedAvatar = avatar;
+    try {
+      if (shouldCompressImage(avatar, 50)) {
+        console.log(`🖼️  Compressing avatar image: ${originalSizeKB.toFixed(2)}KB`);
+        processedAvatar = await compressAvatarImage(avatar);
+        const compressedSizeKB = getBase64ImageSize(processedAvatar);
+        console.log(`✅ Avatar compressed: ${compressedSizeKB.toFixed(2)}KB`);
+      }
+    } catch (error) {
+      console.error('Avatar compression failed:', error);
+      set.status = 400;
+      return commonErrorsTypebox.validationError('Failed to process avatar image');
+    }
+      try {
+        const result = await prisma.channel.create({ data: {
+          name: name,
+          instruction: instruction,
+          avatar: processedAvatar,
+          authorId: userId,
+          },
+          include: {
+            author: true,
+            snaps: true,
+            followers: true,
+          },
+        });
+        set.status = 201;
+        return createSuccessResponse(result);
+      } catch (error) {
+        set.status = 500;
+        return commonErrorsTypebox.internalError();
+      }
+    }, {
+      detail: {
+        tags: ['CRUD'],
+        summary: 'Create a new channel',
+        description: 'Create a new channel'
+      },
+      body: t.Object({
+        name: t.String(),
+        instruction: t.String(),
+        avatar: t.String(),
+      }),
+      response: {
+        201: ApiSuccessResponseTypeBox(),
+        400: ApiErrorResponseTypeBox,
+        500: ApiErrorResponseTypeBox,
+      }
+    })
     
     // Generic CRUD routes for any model
     .group('/:model', (app) => 
